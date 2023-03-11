@@ -2814,7 +2814,7 @@ Naming/MemoizedInstanceVariableName:
     - optional
   Safe: false
 
-Naming/MethodName:
+Name:
   Description: 'Use the configured style when naming methods.'
   StyleGuide: '#snake-case-symbols-methods-vars'
   Enabled: true
@@ -2857,6 +2857,7 @@ Naming/MethodParameterName:
     - 'on'
     - os
     - pp
+    - pr
     - to
   # Forbidden names that will register an offense
   ForbiddenNames: []
