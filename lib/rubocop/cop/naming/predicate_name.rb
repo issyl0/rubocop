@@ -6,12 +6,17 @@ module RuboCop
       # Checks that predicate methods names end with a question mark and
       # do not start with a forbidden prefix.
       #
-      # A method is determined to be a predicate method if its name starts
-      # with one of the prefixes defined in the `NamePrefix` configuration.
-      # You can change what prefixes are considered by changing this option.
-      # Any method name that starts with one of these prefixes is required by
-      # the cop to end with a `?`. Other methods can be allowed by adding to
-      # the `AllowedMethods` configuration.
+      # A method is determined to be a predicate method in either of two ways:
+      #
+      # - By default, if its name starts with one of the prefixes defined in the
+      # `NamePrefix` configuration.
+      # - With the `SorbetSig: true` config, if it has a Sorbet `sig` with a return
+      # type of `T::Boolean`.
+      #
+      # You can change what prefixes are considered by changing the `NamePrefix`
+      # option. Any method name that starts with one of these prefixes is
+      # required by the cop to end with a `?`. Other methods can be allowed by
+      # adding to the `AllowedMethods` configuration.
       #
       # NOTE: The `is_a?` method is allowed by default.
       #
@@ -51,6 +56,16 @@ module RuboCop
       #   def value?
       #   end
       #
+      #   # bad
+      #   sig { returns(T::Boolean) }
+      #   def odd(value)
+      #   end
+      #
+      #   # good
+      #   sig { returns(T::Boolean) }
+      #   def odd?(value)
+      #   end
+      #
       # @example AllowedMethods: ['is_a?'] (default)
       #   # good
       #   def is_a?(value)
@@ -80,15 +95,28 @@ module RuboCop
         end
 
         def on_def(node)
-          predicate_prefixes.each do |prefix|
-            method_name = node.method_name.to_s
+          method_name = node.method_name.to_s
 
+          predicate_prefixes.each do |prefix|
             next if allowed_method_name?(method_name, prefix)
 
-            add_offense(
-              node.loc.name,
-              message: message(method_name, expected_name(method_name, prefix))
-            )
+            if sorbet?
+              node.parent.each_descendant(:block) do |block_node|
+                next unless block_node.method_name == :sig
+                # TODO: Do this with the AST methods rather than `.source`.
+                next unless block_node.body.source.include?('returns(T::Boolean)')
+
+                add_offense(
+                  node.loc.name,
+                  message: message(method_name, expected_name(method_name, prefix))
+                )
+              end
+            else
+              add_offense(
+                node.loc.name,
+                message: message(method_name, expected_name(method_name, prefix))
+              )
+            end
           end
         end
         alias on_defs on_def
@@ -123,6 +151,10 @@ module RuboCop
 
         def predicate_prefixes
           cop_config['NamePrefix']
+        end
+
+        def sorbet?
+          cop_config['UseSorbetSigs']
         end
 
         def method_definition_macros(macro_name)
